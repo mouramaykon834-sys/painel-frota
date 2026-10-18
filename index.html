@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'sha256-7SkbWSiNd+L0I4iRMLdJmjupuR/NxyVO22OOWZpdgeo=' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+
+  <!-- ===================== CONFIGURAÇÃO =====================
+       Preencha só estas duas linhas (Supabase › Project Settings › API).
+       Use a chave "anon public". NUNCA coloque a service_role aqui.
+       Não edite o <script> no fim do arquivo: ele é protegido por hash na CSP. -->
+  <meta name="supabase-url" content="https://SEU-PROJETO.supabase.co">
+  <meta name="supabase-anon-key" content="COLE_AQUI_A_CHAVE_ANON">
+  <!-- ======================================================= -->
+  <title>Painel de Frota</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+  <style>
+:root {
+  --asfalto: #23282D;
+  --papel: #F4F6F7;
+  --superficie: #FFFFFF;
+  --linha: #D9DEE2;
+  --texto: #23282D;
+  --texto-suave: #5B6770;
+  --sinal: #E8A317;
+  --rota: #1F7A4D;
+  --parado: #B83227;
+  --aco: #3E5C76;
+  --foco: #E8A317;
+  --fonte: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --fonte-cond: "Barlow Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --papel: #1A1E22; --superficie: #23282D; --linha: #3A4148;
+    --texto: #E9ECEE; --texto-suave: #A3ADB5; --aco: #8FB0CC;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.45 var(--fonte); background: var(--papel); color: var(--texto); }
+[hidden] { display: none !important; }
+:focus-visible { outline: 3px solid var(--foco); outline-offset: 2px; }
+
+/* Marca: uma placa de estrada */
+.marca { display: flex; align-items: center; gap: .6rem; font-family: var(--fonte-cond); font-size: 1.15rem; font-weight: 600; }
+.marca-placa { background: var(--sinal); color: #23282D; padding: .1rem .55rem; border: 2px solid #23282D; border-radius: 4px; font-weight: 700; letter-spacing: .04em; }
+
+/* Login */
+.login { min-height: 100vh; display: grid; place-items: center; background: var(--asfalto); padding: 1rem; }
+.login-caixa { background: var(--superficie); padding: 2rem; width: min(380px, 100%); border-radius: 6px; border-top: 6px solid var(--sinal); }
+.login-caixa h1 { font-family: var(--fonte-cond); font-size: 2rem; margin: 1.2rem 0 1rem; }
+label { display: grid; gap: .3rem; font-weight: 500; font-size: .9rem; margin-bottom: .9rem; }
+input, select, textarea { font: inherit; padding: .5rem .6rem; border: 1px solid var(--linha); border-radius: 4px; background: var(--superficie); color: var(--texto); }
+textarea { min-height: 90px; resize: vertical; }
+.erro { color: var(--parado); min-height: 1.2em; }
+
+/* Estrutura */
+.app { display: grid; grid-template-rows: auto auto 1fr; min-height: 100vh; }
+.topo { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; background: var(--asfalto); color: #F4F6F7; padding: .7rem 1.25rem; }
+.topo-info { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; font-size: .9rem; }
+.sync-info { color: #C8D0D6; }
+.usuario { color: #C8D0D6; }
+.menu { display: flex; gap: .25rem; overflow-x: auto; background: var(--superficie); border-bottom: 1px solid var(--linha); padding: 0 1rem; }
+.menu button { font: 600 1rem var(--fonte-cond); background: none; border: 0; border-bottom: 3px solid transparent; padding: .75rem .9rem; color: var(--texto-suave); cursor: pointer; white-space: nowrap; }
+.menu button.ativo { color: var(--texto); border-bottom-color: var(--sinal); }
+.conteudo { padding: 1.25rem; max-width: 100%; }
+.conteudo h2 { font: 600 1.6rem var(--fonte-cond); margin: 0 0 1rem; }
+
+/* Botões */
+.btn { font: 600 .95rem var(--fonte); padding: .45rem .9rem; border-radius: 4px; border: 1px solid var(--linha); background: var(--superficie); color: var(--texto); cursor: pointer; }
+.topo .btn { background: transparent; color: #F4F6F7; border-color: #56606A; }
+.btn-primario, .topo .btn-primario { background: var(--sinal); color: #23282D; border-color: var(--sinal); }
+.btn-fantasma { border-color: transparent; }
+.btn-perigo { color: var(--parado); }
+.btn:disabled { opacity: .5; cursor: wait; }
+
+/* Barra de ferramentas */
+.barra { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-bottom: 1rem; }
+.barra input, .barra select { min-width: 180px; }
+.resumo { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; font-family: var(--fonte-cond); font-size: 1.05rem; }
+.resumo strong { font-size: 1.6rem; margin-right: .3rem; }
+
+/* Tabela */
+.tabela-wrap { overflow-x: auto; background: var(--superficie); border: 1px solid var(--linha); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+th { font: 600 .9rem var(--fonte-cond); text-align: left; background: var(--asfalto); color: #F4F6F7; padding: .55rem .6rem; position: sticky; top: 0; white-space: nowrap; }
+td { padding: .5rem .6rem; border-top: 1px solid var(--linha); vertical-align: top; }
+tr:hover td { background: color-mix(in srgb, var(--sinal) 7%, transparent); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.placa { font: 700 .95rem var(--fonte-cond); letter-spacing: .05em; border: 1.5px solid var(--texto); border-radius: 3px; padding: 0 .35rem; white-space: nowrap; }
+.suave { color: var(--texto-suave); }
+
+/* Status como placas de sinalização */
+.status { display: inline-block; font: 700 .85rem var(--fonte-cond); padding: .1rem .5rem; border-radius: 3px; white-space: nowrap; }
+.status-rota { background: var(--rota); color: #fff; }
+.status-parado { background: var(--parado); color: #fff; }
+.status-naoiniciou { border: 1.5px dashed var(--texto-suave); color: var(--texto-suave); }
+.status-semdados { color: var(--texto-suave); }
+
+/* Meta de km */
+.meta { min-width: 120px; }
+.meta-barra { height: 6px; background: var(--linha); border-radius: 3px; margin-top: .3rem; overflow: hidden; }
+.meta-barra span { display: block; height: 100%; background: var(--rota); }
+.meta-barra.abaixo span { background: var(--parado); }
+.meta-texto { font-size: .78rem; color: var(--texto-suave); }
+
+.chip { display: inline-block; font-size: .78rem; padding: .05rem .45rem; border-radius: 10px; color: #fff; margin: 0 .2rem .2rem 0; cursor: pointer; border: 0; font-family: var(--fonte); }
+
+/* Modal */
+.modal { border: 0; border-radius: 6px; padding: 1.5rem; width: min(520px, 94vw); background: var(--superficie); color: var(--texto); border-top: 6px solid var(--sinal); }
+.modal::backdrop { background: rgba(20, 24, 28, .55); }
+.modal h3 { font: 600 1.4rem var(--fonte-cond); margin: 0 0 1rem; }
+.modal-acoes { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
+.check { display: flex; align-items: center; gap: .5rem; }
+
+.grade-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 1rem; }
+.cartao { background: var(--superficie); border: 1px solid var(--linha); border-radius: 6px; padding: 1.25rem; margin-bottom: 1rem; max-width: 820px; }
+.cartao h3 { font: 600 1.2rem var(--fonte-cond); margin: 0 0 .75rem; }
+
+.aviso { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: var(--asfalto); color: #fff; padding: .6rem 1rem; border-radius: 4px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.aviso.visivel { opacity: 1; }
+.aviso.erro-aviso { background: var(--parado); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+  <!-- LOGIN -->
+  <section id="tela-login" class="login" hidden>
+    <div class="login-caixa">
+      <div class="marca"><span class="marca-placa">FROTA</span> Painel operacional</div>
+      <h1>Entrar</h1>
+      <label>E-mail <input id="login-email" type="email" autocomplete="username" required></label>
+      <label>Senha <input id="login-senha" type="password" autocomplete="current-password" required></label>
+      <button id="btn-entrar" class="btn btn-primario">Entrar</button>
+      <p id="login-erro" class="erro" role="alert"></p>
+    </div>
+  </section>
+
+  <!-- APLICAÇÃO -->
+  <div id="app" class="app" hidden>
+    <header class="topo">
+      <div class="marca"><span class="marca-placa">FROTA</span> Painel operacional</div>
+      <div class="topo-info">
+        <span id="info-sync" class="sync-info">Sem sincronização ainda</span>
+        <button id="btn-sync" class="btn" data-papel="admin">Sincronizar agora</button>
+        <span id="info-usuario" class="usuario"></span>
+        <button id="btn-sair" class="btn btn-fantasma">Sair</button>
+      </div>
+    </header>
+
+    <nav class="menu" aria-label="Seções">
+      <button data-view="painel" class="ativo">Painel do dia</button>
+      <button data-view="motoristas">Motoristas</button>
+      <button data-view="veiculos">Veículos</button>
+      <button data-view="parametros" data-papel="admin">Parâmetros</button>
+      <button data-view="tipos" data-papel="admin">Tipos de observação</button>
+      <button data-view="sync">Sincronizações</button>
+    </nav>
+
+    <main id="conteudo" class="conteudo" tabindex="-1"></main>
+  </div>
+
+  <dialog id="modal" class="modal">
+    <div id="modal-corpo"></div>
+  </dialog>
+
+  <div id="aviso" class="aviso" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+"use strict";
+// =====================================================================
+// Painel de Frota — front-end (sem build, roda direto no GitHub Pages)
+// Toda autorização é feita no banco (RLS). O front só esconde botões.
+// =====================================================================
+const CFG = {
+  url: document.querySelector('meta[name="supabase-url"]').content.trim(),
+  chave: document.querySelector('meta[name="supabase-anon-key"]').content.trim(),
+};
+if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(CFG.url) || CFG.chave.length < 20) {
+  document.body.innerHTML = '<p style="font:16px sans-serif;padding:2rem">Configuração pendente: preencha as meta tags <b>supabase-url</b> e <b>supabase-anon-key</b> no início do index.html.</p>';
+  throw new Error("Supabase não configurado");
+}
+const sb = window.supabase.createClient(CFG.url, CFG.chave);
+const $ = (s, el = document) => el.querySelector(s);
+const conteudo = $("#conteudo");
+let papel = null;
+let canalRealtime = null;
+
+// ---------- utilitários ----------
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtData = (iso) => iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+const fmtKm = (n) => n == null ? "" : Number(n).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+function duracao(iso) {
+  if (!iso) return "";
+  const min = Math.floor((Date.now() - new Date(iso)) / 60000);
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`;
+}
+function aviso(msg, erro = false) {
+  const a = $("#aviso");
+  a.textContent = msg;
+  a.className = "aviso visivel" + (erro ? " erro-aviso" : "");
+  clearTimeout(aviso.t);
+  aviso.t = setTimeout(() => (a.className = "aviso"), 3500);
+}
+function falhou(error) {
+  if (!error) return false;
+  console.error(error);
+  aviso(error.code === "42501" ? "Seu perfil não tem permissão para isso." : `Não foi possível salvar: ${error.message}`, true);
+  return true;
+}
+const podeEditar = () => papel === "admin";
+const podeObservar = () => papel === "admin" || papel === "operador";
+
+// ---------- autenticação ----------
+async function iniciar() {
+  const { data } = await sb.auth.getSession();
+  if (data.session) await entrarNoApp(data.session);
+  else mostrarLogin();
+  sb.auth.onAuthStateChange((evento, sessao) => {
+    if (evento === "SIGNED_OUT") mostrarLogin();
+    if (evento === "SIGNED_IN" && sessao && !papel) entrarNoApp(sessao);
+  });
+}
+function mostrarLogin() {
+  papel = null;
+  if (canalRealtime) sb.removeChannel(canalRealtime);
+  $("#app").hidden = true;
+  $("#tela-login").hidden = false;
+}
+$("#btn-entrar").addEventListener("click", async () => {
+  const btn = $("#btn-entrar");
+  btn.disabled = true;
+  $("#login-erro").textContent = "";
+  const { error } = await sb.auth.signInWithPassword({ email: $("#login-email").value.trim(), password: $("#login-senha").value });
+  btn.disabled = false;
+  if (error) $("#login-erro").textContent = "E-mail ou senha incorretos.";
+});
+$("#login-senha").addEventListener("keydown", (e) => e.key === "Enter" && $("#btn-entrar").click());
+$("#btn-sair").addEventListener("click", () => sb.auth.signOut());
+
+async function entrarNoApp(sessao) {
+  const { data: perfil } = await sb.from("perfis").select("nome, papel").eq("user_id", sessao.user.id).maybeSingle();
+  if (!perfil) {
+    await sb.auth.signOut();
+    $("#login-erro").textContent = "Usuário sem perfil de acesso. Peça liberação ao administrador.";
+    return;
+  }
+  papel = perfil.papel;
+  $("#info-usuario").textContent = `${perfil.nome} (${papel})`;
+  document.querySelectorAll("[data-papel=admin]").forEach((el) => (el.hidden = papel !== "admin"));
+  $("#tela-login").hidden = true;
+  $("#app").hidden = false;
+  atualizarInfoSync();
+  abrir("painel");
+  canalRealtime = sb.channel("jornadas")
+    .on("postgres_changes", { event: "*", schema: "public", table: "jornadas" }, () => {
+      if (viewAtual === "painel") renderPainel();
+      atualizarInfoSync();
+    })
+    .subscribe();
+}
+
+// ---------- navegação ----------
+let viewAtual = "painel";
+document.querySelector(".menu").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-view]");
+  if (b) abrir(b.dataset.view);
+});
+function abrir(view) {
+  viewAtual = view;
+  document.querySelectorAll(".menu button").forEach((b) => b.classList.toggle("ativo", b.dataset.view === view));
+  ({ painel: renderPainel, motoristas: renderMotoristas, veiculos: renderVeiculos,
+     parametros: renderParametros, tipos: renderTipos, sync: renderSync })[view]();
+  conteudo.focus();
+}
+
+// ---------- sincronização ----------
+async function atualizarInfoSync() {
+  const { data } = await sb.from("sync_log").select("*").order("iniciado_em", { ascending: false }).limit(1).maybeSingle();
+  if (!data) return;
+  $("#info-sync").textContent = data.sucesso === false
+    ? `Última sincronização falhou às ${fmtData(data.iniciado_em)}`
+    : `Atualizado em ${fmtData(data.finalizado_em || data.iniciado_em)}`;
+}
+$("#btn-sync").addEventListener("click", async () => {
+  const btn = $("#btn-sync");
+  btn.disabled = true;
+  btn.textContent = "Sincronizando…";
+  const { data, error } = await sb.functions.invoke("sync-omnilink", { body: {} });
+  btn.disabled = false;
+  btn.textContent = "Sincronizar agora";
+  if (error || !data?.ok) return aviso("A sincronização falhou. Veja a aba Sincronizações.", true);
+  aviso(`Sincronizado: ${data.veiculos} veículos, ${data.posicoes} posições.`);
+  atualizarInfoSync();
+  if (viewAtual === "painel") renderPainel();
+});
+
+// =====================================================================
+// PAINEL DO DIA (equivalente à planilha)
+// =====================================================================
+let filtroPainel = { busca: "", status: "" };
+let linhasPainel = [];
+
+async function renderPainel() {
+  const { data, error } = await sb.from("painel").select("*");
+  if (falhou(error)) return;
+  linhasPainel = data;
+
+  const emRota = data.filter((r) => r.status === "EM ROTA").length;
+  const naoIniciou = data.filter((r) => r.veiculo_id && !r.inicio_em).length;
+  const abaixo = data.filter(abaixoDaMeta).length;
+
+  conteudo.innerHTML = `
+    <h2>Painel do dia</h2>
+    <div class="resumo">
+      <span><strong>${data.length}</strong>motoristas</span>
+      <span><strong>${emRota}</strong>em rota</span>
+      <span><strong>${data.length - emRota}</strong>parados</span>
+      <span><strong>${naoIniciou}</strong>não iniciaram</span>
+      <span><strong>${abaixo}</strong>abaixo da meta de km</span>
+    </div>
+    <div class="barra">
+      <input id="f-busca" type="search" placeholder="Buscar nome, placa ou local" value="${esc(filtroPainel.busca)}" aria-label="Buscar">
+      <select id="f-status" aria-label="Filtrar status">
+        <option value="">Todos os status</option>
+        <option value="EM ROTA">Em rota</option>
+        <option value="PARADO">Parado</option>
+        <option value="NAO">Não iniciou</option>
+        <option value="META">Abaixo da meta</option>
+      </select>
+      <button id="btn-csv" class="btn">Exportar planilha (CSV)</button>
+    </div>
+    <div class="tabela-wrap"><table>
+      <thead><tr>
+        <th>Quant.</th><th>Nome</th><th>Placa</th><th>Status</th><th>Data/hora início diário</th>
+        <th>Início diário</th><th>Origem x destino</th><th>Localização</th><th>KM rodado</th>
+        <th>Última posição</th><th>Tempo parado</th><th>Observações</th>
+      </tr></thead>
+      <tbody id="corpo-painel"></tbody>
+    </table></div>`;
+  $("#f-status").value = filtroPainel.status;
+  $("#f-busca").addEventListener("input", (e) => { filtroPainel.busca = e.target.value; preencherPainel(); });
+  $("#f-status").addEventListener("change", (e) => { filtroPainel.status = e.target.value; preencherPainel(); });
+  $("#btn-csv").addEventListener("click", exportarCsv);
+  $("#corpo-painel").addEventListener("click", cliquePainel);
+  preencherPainel();
+}
+
+function abaixoDaMeta(r) {
+  if (!r.inicio_em || r.km_esperado == null) return false;
+  if ((r.observacoes || []).some((o) => o.ignora_meta)) return false;
+  return Number(r.km_rodado) < Number(r.km_esperado);
+}
+
+function linhasFiltradas() {
+  const b = filtroPainel.busca.toLowerCase();
+  return linhasPainel.filter((r) => {
+    if (b && ![r.nome, r.placa, r.localizacao, r.inicio_local, r.origem_destino].some((x) => (x || "").toLowerCase().includes(b))) return false;
+    if (filtroPainel.status === "NAO") return r.veiculo_id && !r.inicio_em;
+    if (filtroPainel.status === "META") return abaixoDaMeta(r);
+    if (filtroPainel.status) return r.status === filtroPainel.status;
+    return true;
+  });
+}
+
+function celulaStatus(r) {
+  if (!r.veiculo_id) return `<span class="status status-semdados">Sem placa</span>`;
+  if (!r.status) return `<span class="status status-semdados">Sem dados hoje</span>`;
+  return r.status === "EM ROTA"
+    ? `<span class="status status-rota">EM ROTA</span>`
+    : `<span class="status status-parado">PARADO</span>`;
+}
+
+function celulaKm(r) {
+  if (!r.inicio_em) return "";
+  const esperado = Number(r.km_esperado || 0);
+  const pct = esperado > 0 ? Math.min(100, (Number(r.km_rodado) / esperado) * 100) : 100;
+  const baixo = abaixoDaMeta(r);
+  return `<div class="meta"><strong>${fmtKm(r.km_rodado)} km</strong>
+    <div class="meta-barra ${baixo ? "abaixo" : ""}"><span style="width:${pct.toFixed(0)}%"></span></div>
+    <div class="meta-texto">meta ${fmtKm(r.km_esperado)} km (${fmtKm(r.km_meta)} km/h)</div></div>`;
+}
+
+function preencherPainel() {
+  const linhas = linhasFiltradas();
+  $("#corpo-painel").innerHTML = linhas.length ? linhas.map((r, i) => `
+    <tr>
+      <td class="num">${i + 1}</td>
+      <td>${esc(r.nome)}</td>
+      <td>${r.placa ? `<span class="placa">${esc(r.placa)}</span>` : ""}</td>
+      <td>${celulaStatus(r)}</td>
+      <td>${r.veiculo_id ? (r.inicio_em ? esc(fmtData(r.inicio_em)) : `<span class="status status-naoiniciou">NÃO INICIOU</span>`) : ""}</td>
+      <td>${esc(r.inicio_local)}</td>
+      <td>${esc(r.origem_destino)}</td>
+      <td>${esc(r.localizacao)}</td>
+      <td>${celulaKm(r)}</td>
+      <td class="suave">${esc(fmtData(r.ultima_posicao_em))}</td>
+      <td>${r.status === "PARADO" ? esc(duracao(r.parado_desde)) : ""}</td>
+      <td>${(r.observacoes || []).map((o) =>
+          `<button class="chip" style="background:${esc(o.cor)}" data-encerrar="${esc(o.id)}" title="${esc(o.texto || "")} — clique para encerrar">${esc(o.tipo)}</button>`).join("")}
+        ${podeObservar() ? `<button class="btn btn-fantasma" data-observar="${esc(r.motorista_id)}" data-veiculo="${esc(r.veiculo_id || "")}">+ Observação</button>` : ""}</td>
+    </tr>`).join("")
+    : `<tr><td colspan="12" class="suave">Nenhum motorista encontrado. Cadastre motoristas na aba Motoristas e vincule uma placa.</td></tr>`;
+}
+
+async function cliquePainel(e) {
+  const obs = e.target.closest("[data-observar]");
+  if (obs) return modalObservacao(obs.dataset.observar, obs.dataset.veiculo);
+  const enc = e.target.closest("[data-encerrar]");
+  if (enc && podeObservar() && confirm(`Encerrar a observação "${enc.textContent}"?\n${enc.title.replace(" — clique para encerrar", "")}`)) {
+    const { error } = await sb.from("observacoes").update({ encerrada_em: new Date().toISOString() }).eq("id", enc.dataset.encerrar);
+    if (!falhou(error)) { aviso("Observação encerrada."); renderPainel(); }
+  }
+}
+
+async function modalObservacao(motoristaId, veiculoId) {
+  const { data: tipos } = await sb.from("tipos_observacao").select("*").eq("ativo", true).order("nome");
+  abrirModal(`
+    <h3>Nova observação</h3>
+    <label>Tipo <select id="o-tipo">${tipos.map((t) => `<option value="${esc(t.id)}">${esc(t.nome)}</option>`).join("")}</select></label>
+    <label>Detalhes <textarea id="o-texto" maxlength="1000" placeholder="Ex.: veículo na oficina aguardando peça"></textarea></label>
+    <label>Válida até (opcional) <input id="o-ate" type="datetime-local"></label>
+    <div class="modal-acoes"><button class="btn" data-fechar>Cancelar</button><button class="btn btn-primario" id="o-salvar">Salvar observação</button></div>`);
+  $("#o-salvar").addEventListener("click", async () => {
+    const ate = $("#o-ate").value;
+    const { error } = await sb.from("observacoes").insert({
+      motorista_id: motoristaId, veiculo_id: veiculoId || null, tipo_id: $("#o-tipo").value,
+      texto: $("#o-texto").value.trim() || null, ativa_ate: ate ? new Date(ate).toISOString() : null,
+    });
+    if (!falhou(error)) { fecharModal(); aviso("Observação salva."); renderPainel(); }
+  });
+}
+
+function exportarCsv() {
+  const cab = ["Quant.", "NOME", "Placa", "Status", "DATA/HORA INÍCIO DIÁRIO", "INÍCIO DIÁRIO", "ORIGEM X DESTINO",
+    "Localização", "KM RODADO", "KM ESPERADO", "Última posição", "TEMPO PARADO", "MOTIVO"];
+  // Prefixo ' evita injeção de fórmulas ao abrir no Excel
+  const cel = (v) => { let s = String(v ?? ""); if (/^[=+\-@]/.test(s)) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; };
+  const linhas = linhasFiltradas().map((r, i) => [i + 1, r.nome, r.placa, r.status,
+    r.veiculo_id ? (r.inicio_em ? fmtData(r.inicio_em) : "NÃO INICIOU") : "", r.inicio_local, r.origem_destino,
+    r.localizacao, fmtKm(r.km_rodado), fmtKm(r.km_esperado), fmtData(r.ultima_posicao_em),
+    r.status === "PARADO" ? duracao(r.parado_desde) : "", (r.observacoes || []).map((o) => o.tipo + (o.texto ? `: ${o.texto}` : "")).join(" | ")]);
+  const csv = "\uFEFF" + [cab, ...linhas].map((l) => l.map(cel).join(";")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `painel-frota-${new Date().toISOString().slice(0, 16).replace(":", "h")}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// =====================================================================
+// MOTORISTAS (cadastro manual + vínculo de placa)
+// =====================================================================
+async function renderMotoristas() {
+  const [{ data: mot, error }, { data: vinc }, { data: veic }] = await Promise.all([
+    sb.from("motoristas").select("*").order("ordem").order("nome"),
+    sb.from("vinculos").select("motorista_id, veiculo_id").is("fim", null),
+    sb.from("veiculos").select("id, placa").eq("ativo", true).order("placa"),
+  ]);
+  if (falhou(error)) return;
+  const placaDe = (id) => veic.find((v) => v.id === vinc.find((x) => x.motorista_id === id)?.veiculo_id)?.placa;
+
+  conteudo.innerHTML = `
+    <h2>Motoristas</h2>
+    <div class="barra">${podeEditar() ? `<button class="btn btn-primario" id="novo-mot">Cadastrar motorista</button>` : ""}</div>
+    <div class="tabela-wrap"><table>
+      <thead><tr><th>Ordem</th><th>Nome</th><th>Matrícula</th><th>ID na plataforma PX</th><th>Origem x destino</th><th>Placa vinculada</th><th>Situação</th><th></th></tr></thead>
+      <tbody>${mot.map((m) => `<tr>
+        <td class="num">${esc(m.ordem)}</td><td>${esc(m.nome)}</td><td>${esc(m.matricula)}</td><td>${esc(m.px_id)}</td>
+        <td>${esc(m.origem_destino)}</td>
+        <td>${placaDe(m.id) ? `<span class="placa">${esc(placaDe(m.id))}</span>` : `<span class="suave">Sem placa</span>`}</td>
+        <td>${m.ativo ? "Ativo" : `<span class="suave">Inativo</span>`}</td>
+        <td>${podeEditar() ? `<button class="btn" data-editar="${esc(m.id)}">Editar</button> <button class="btn" data-vincular="${esc(m.id)}">Vincular placa</button>` : ""}</td>
+      </tr>`).join("") || `<tr><td colspan="8" class="suave">Nenhum motorista ainda. Use "Cadastrar motorista" para começar.</td></tr>`}</tbody>
+    </table></div>`;
+
+  $("#novo-mot")?.addEventListener("click", () => formMotorista({ ativo: true, ordem: mot.length + 1 }));
+  conteudo.querySelector("tbody").addEventListener("click", (e) => {
+    const ed = e.target.closest("[data-editar]");
+    if (ed) formMotorista(mot.find((m) => m.id === ed.dataset.editar));
+    const vi = e.target.closest("[data-vincular]");
+    if (vi) formVinculo(mot.find((m) => m.id === vi.dataset.vincular), veic, vinc);
+  });
+}
+
+function formMotorista(m) {
+  abrirModal(`
+    <h3>${m.id ? "Editar motorista" : "Cadastrar motorista"}</h3>
+    <label>Nome completo <input id="m-nome" value="${esc(m.nome)}" required></label>
+    <div class="grade-2">
+      <label>Matrícula <input id="m-mat" value="${esc(m.matricula)}"></label>
+      <label>Telefone <input id="m-tel" value="${esc(m.telefone)}"></label>
+      <label>ID na plataforma PX <input id="m-px" value="${esc(m.px_id)}"></label>
+      <label>Ordem no painel <input id="m-ordem" type="number" value="${esc(m.ordem)}"></label>
+    </div>
+    <label>Origem x destino <input id="m-od" value="${esc(m.origem_destino)}" placeholder="SÃO LUÍS-MA X URUÇUÍ-PI"></label>
+    <label class="check"><input id="m-ativo" type="checkbox" ${m.ativo ? "checked" : ""}> Aparece no painel</label>
+    <div class="modal-acoes"><button class="btn" data-fechar>Cancelar</button><button class="btn btn-primario" id="m-salvar">Salvar motorista</button></div>`);
+  $("#m-salvar").addEventListener("click", async () => {
+    const reg = {
+      nome: $("#m-nome").value.trim().toUpperCase(), matricula: $("#m-mat").value.trim() || null,
+      telefone: $("#m-tel").value.trim() || null, px_id: $("#m-px").value.trim() || null,
+      ordem: Number($("#m-ordem").value) || 0, origem_destino: $("#m-od").value.trim().toUpperCase() || null,
+      ativo: $("#m-ativo").checked,
+    };
+    if (!reg.nome) return aviso("Informe o nome do motorista.", true);
+    const { error } = m.id ? await sb.from("motoristas").update(reg).eq("id", m.id) : await sb.from("motoristas").insert(reg);
+    if (!falhou(error)) { fecharModal(); aviso("Motorista salvo."); renderMotoristas(); }
+  });
+}
+
+function formVinculo(m, veic, vinc) {
+  const atual = vinc.find((x) => x.motorista_id === m.id)?.veiculo_id;
+  abrirModal(`
+    <h3>Vincular placa a ${esc(m.nome)}</h3>
+    <label>Placa <select id="v-placa">
+      <option value="">Sem placa (desvincular)</option>
+      ${veic.map((v) => {
+        const outro = vinc.find((x) => x.veiculo_id === v.id && x.motorista_id !== m.id);
+        return `<option value="${esc(v.id)}" ${v.id === atual ? "selected" : ""}>${esc(v.placa)}${outro ? " (em uso, será transferida)" : ""}</option>`;
+      }).join("")}
+    </select></label>
+    <p class="suave">A partir do vínculo, localização, km rodado e última posição dessa placa passam a aparecer na linha deste motorista.</p>
+    <div class="modal-acoes"><button class="btn" data-fechar>Cancelar</button><button class="btn btn-primario" id="v-salvar">Salvar vínculo</button></div>`);
+  $("#v-salvar").addEventListener("click", async () => {
+    const novo = $("#v-placa").value;
+    const agora = new Date().toISOString();
+    let r = await sb.from("vinculos").update({ fim: agora }).eq("motorista_id", m.id).is("fim", null);
+    if (falhou(r.error)) return;
+    if (novo) {
+      r = await sb.from("vinculos").update({ fim: agora }).eq("veiculo_id", novo).is("fim", null);
+      if (falhou(r.error)) return;
+      r = await sb.from("vinculos").insert({ motorista_id: m.id, veiculo_id: novo });
+      if (falhou(r.error)) return;
+    }
+    fecharModal(); aviso("Vínculo salvo."); renderMotoristas();
+  });
+}
+
+// =====================================================================
+// VEÍCULOS
+// =====================================================================
+async function renderVeiculos() {
+  const { data, error } = await sb.from("veiculos").select("*").order("placa");
+  if (falhou(error)) return;
+  conteudo.innerHTML = `
+    <h2>Veículos</h2>
+    <div class="barra">${podeEditar() ? `<button class="btn btn-primario" id="novo-v">Cadastrar veículo</button>` : ""}</div>
+    <div class="tabela-wrap"><table>
+      <thead><tr><th>Placa</th><th>ID na Omnilink</th><th>Descrição</th><th>Situação</th><th></th></tr></thead>
+      <tbody>${data.map((v) => `<tr>
+        <td><span class="placa">${esc(v.placa)}</span></td><td>${esc(v.px_veiculo_id)}</td><td>${esc(v.descricao)}</td>
+        <td>${v.ativo ? "Ativo" : `<span class="suave">Inativo</span>`}</td>
+        <td>${podeEditar() ? `<button class="btn" data-editar="${esc(v.id)}">Editar</button>` : ""}</td></tr>`).join("")
+        || `<tr><td colspan="5" class="suave">Nenhum veículo ainda. Cadastre as placas que serão acompanhadas.</td></tr>`}</tbody>
+    </table></div>`;
+  $("#novo-v")?.addEventListener("click", () => formVeiculo({ ativo: true }));
+  conteudo.querySelector("tbody").addEventListener("click", (e) => {
+    const ed = e.target.closest("[data-editar]");
+    if (ed) formVeiculo(data.find((v) => v.id === ed.dataset.editar));
+  });
+}
+
+function formVeiculo(v) {
+  abrirModal(`
+    <h3>${v.id ? "Editar veículo" : "Cadastrar veículo"}</h3>
+    <label>Placa <input id="v-pl" value="${esc(v.placa)}" placeholder="SLM8E61" maxlength="8"></label>
+    <label>ID do veículo na Omnilink <input id="v-px" value="${esc(v.px_veiculo_id)}"></label>
+    <label>Descrição <input id="v-desc" value="${esc(v.descricao)}" placeholder="Cavalo mecânico, carreta…"></label>
+    <label class="check"><input id="v-ativo" type="checkbox" ${v.ativo ? "checked" : ""}> Acompanhar este veículo</label>
+    <div class="modal-acoes"><button class="btn" data-fechar>Cancelar</button><button class="btn btn-primario" id="v-salvar">Salvar veículo</button></div>`);
+  $("#v-salvar").addEventListener("click", async () => {
+    const reg = { placa: $("#v-pl").value.toUpperCase().replace(/[^A-Z0-9]/g, ""), px_veiculo_id: $("#v-px").value.trim() || null,
+      descricao: $("#v-desc").value.trim() || null, ativo: $("#v-ativo").checked };
+    if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(reg.placa)) return aviso("Placa inválida. Use o formato ABC1D23 ou ABC1234.", true);
+    const { error } = v.id ? await sb.from("veiculos").update(reg).eq("id", v.id) : await sb.from("veiculos").insert(reg);
+    if (!falhou(error)) { fecharModal(); aviso("Veículo salvo."); renderVeiculos(); }
+  });
+}
+
+// =====================================================================
+// PARÂMETROS (global + por motorista)
+// =====================================================================
+async function renderParametros() {
+  const [{ data: params, error }, { data: mot }] = await Promise.all([
+    sb.from("parametros").select("*"), sb.from("motoristas").select("id, nome").eq("ativo", true).order("nome")]);
+  if (falhou(error)) return;
+  const global = params.find((p) => p.motorista_id === null);
+  const especificos = params.filter((p) => p.motorista_id);
+  const campos = (p, pre) => `
+    <div class="grade-2">
+      <label>Meta de km por hora de jornada <input id="${pre}-km" type="number" step="0.1" value="${esc(p.km_por_hora_meta)}"></label>
+      <label>Velocidade que conta como movimento (km/h) <input id="${pre}-vel" type="number" step="0.1" value="${esc(p.velocidade_movimento)}"></label>
+      <label>Deslocamento mínimo para iniciar a jornada (m) <input id="${pre}-raio" type="number" value="${esc(p.raio_inicio_m)}"></label>
+      <label>Hora em que o dia operacional vira <input id="${pre}-corte" type="number" min="0" max="23" value="${esc(p.hora_corte_diario)}"></label>
+    </div>`;
+  const ler = (pre) => ({ km_por_hora_meta: +$(`#${pre}-km`).value, velocidade_movimento: +$(`#${pre}-vel`).value,
+    raio_inicio_m: +$(`#${pre}-raio`).value, hora_corte_diario: +$(`#${pre}-corte`).value });
+
+  conteudo.innerHTML = `<div class="param">
+    <h2>Parâmetros</h2>
+    <div class="cartao"><h3>Padrão para todos os motoristas</h3>${campos(global, "g")}
+      <button class="btn btn-primario" id="g-salvar">Salvar padrão</button></div>
+    <div class="cartao"><h3>Exceções por motorista</h3>
+      <p class="suave">Use quando um motorista tem rota ou veículo com meta diferente do padrão.</p>
+      <div class="barra"><select id="e-mot">${mot.map((m) => `<option value="${esc(m.id)}">${esc(m.nome)}</option>`).join("")}</select>
+        <button class="btn" id="e-add">Criar exceção</button></div>
+      ${especificos.map((p) => `<div class="cartao"><h3>${esc(mot.find((m) => m.id === p.motorista_id)?.nome || "Motorista inativo")}</h3>
+        ${campos(p, "p" + p.id.slice(0, 8))}
+        <button class="btn btn-primario" data-salvar="${esc(p.id)}">Salvar exceção</button>
+        <button class="btn btn-perigo" data-remover="${esc(p.id)}">Remover exceção</button></div>`).join("")}
+    </div></div>`;
+
+  $("#g-salvar").addEventListener("click", async () => {
+    const { error } = await sb.from("parametros").update(ler("g")).eq("id", global.id);
+    if (!falhou(error)) aviso("Parâmetros padrão salvos.");
+  });
+  $("#e-add").addEventListener("click", async () => {
+    const { km_por_hora_meta, velocidade_movimento, raio_inicio_m, hora_corte_diario, fuso } = global;
+    const { error } = await sb.from("parametros").insert({ motorista_id: $("#e-mot").value, km_por_hora_meta, velocidade_movimento, raio_inicio_m, hora_corte_diario, fuso });
+    if (!falhou(error)) renderParametros();
+  });
+  $(".param").addEventListener("click", async (e) => {
+    const s = e.target.closest("[data-salvar]");
+    if (s) { const { error } = await sb.from("parametros").update(ler("p" + s.dataset.salvar.slice(0, 8))).eq("id", s.dataset.salvar); if (!falhou(error)) aviso("Exceção salva."); }
+    const r = e.target.closest("[data-remover]");
+    if (r && confirm("Remover esta exceção? O motorista volta a usar o padrão.")) {
+      const { error } = await sb.from("parametros").delete().eq("id", r.dataset.remover); if (!falhou(error)) renderParametros();
+    }
+  });
+}
+
+// =====================================================================
+// TIPOS DE OBSERVAÇÃO (programáveis)
+// =====================================================================
+async function renderTipos() {
+  const { data, error } = await sb.from("tipos_observacao").select("*").order("nome");
+  if (falhou(error)) return;
+  conteudo.innerHTML = `
+    <h2>Tipos de observação</h2>
+    <div class="barra"><button class="btn btn-primario" id="novo-t">Criar tipo</button></div>
+    <div class="tabela-wrap"><table>
+      <thead><tr><th>Tipo</th><th>Suspende a meta de km?</th><th>Situação</th><th></th></tr></thead>
+      <tbody>${data.map((t) => `<tr><td><span class="chip" style="background:${esc(t.cor)}">${esc(t.nome)}</span></td>
+        <td>${t.ignora_meta ? "Sim" : "Não"}</td><td>${t.ativo ? "Ativo" : "Inativo"}</td>
+        <td><button class="btn" data-editar="${esc(t.id)}">Editar</button></td></tr>`).join("")}</tbody>
+    </table></div>`;
+  $("#novo-t").addEventListener("click", () => formTipo({ cor: "#3E5C76", ativo: true }));
+  conteudo.querySelector("tbody").addEventListener("click", (e) => {
+    const ed = e.target.closest("[data-editar]");
+    if (ed) formTipo(data.find((t) => t.id === ed.dataset.editar));
+  });
+}
+
+function formTipo(t) {
+  abrirModal(`
+    <h3>${t.id ? "Editar tipo" : "Criar tipo de observação"}</h3>
+    <label>Nome <input id="t-nome" value="${esc(t.nome)}" placeholder="Ex.: Aguardando nota fiscal"></label>
+    <label>Cor <input id="t-cor" type="color" value="${esc(t.cor)}"></label>
+    <label class="check"><input id="t-meta" type="checkbox" ${t.ignora_meta ? "checked" : ""}> Enquanto ativa, não cobrar meta de km</label>
+    <label class="check"><input id="t-ativo" type="checkbox" ${t.ativo ? "checked" : ""}> Disponível para os operadores</label>
+    <div class="modal-acoes"><button class="btn" data-fechar>Cancelar</button><button class="btn btn-primario" id="t-salvar">Salvar tipo</button></div>`);
+  $("#t-salvar").addEventListener("click", async () => {
+    const reg = { nome: $("#t-nome").value.trim(), cor: $("#t-cor").value, ignora_meta: $("#t-meta").checked, ativo: $("#t-ativo").checked };
+    if (!reg.nome) return aviso("Informe o nome do tipo.", true);
+    const { error } = t.id ? await sb.from("tipos_observacao").update(reg).eq("id", t.id) : await sb.from("tipos_observacao").insert(reg);
+    if (!falhou(error)) { fecharModal(); aviso("Tipo salvo."); renderTipos(); }
+  });
+}
+
+// =====================================================================
+// HISTÓRICO DE SINCRONIZAÇÕES
+// =====================================================================
+async function renderSync() {
+  const { data, error } = await sb.from("sync_log").select("*").order("iniciado_em", { ascending: false }).limit(48);
+  if (falhou(error)) return;
+  conteudo.innerHTML = `
+    <h2>Sincronizações</h2>
+    <p class="suave">A busca na Omnilink roda automaticamente a cada hora. Aqui ficam as últimas 48 execuções.</p>
+    <div class="tabela-wrap"><table>
+      <thead><tr><th>Início</th><th>Fim</th><th>Resultado</th><th>Veículos</th><th>Posições</th><th>Mensagem</th></tr></thead>
+      <tbody>${data.map((l) => `<tr><td>${esc(fmtData(l.iniciado_em))}</td><td>${esc(fmtData(l.finalizado_em))}</td>
+        <td>${l.sucesso == null ? "Em andamento" : l.sucesso ? `<span class="status status-rota">OK</span>` : `<span class="status status-parado">FALHOU</span>`}</td>
+        <td class="num">${esc(l.veiculos)}</td><td class="num">${esc(l.posicoes)}</td><td>${esc(l.mensagem)}</td></tr>`).join("")
+        || `<tr><td colspan="6" class="suave">Nenhuma sincronização ainda.</td></tr>`}</tbody>
+    </table></div>`;
+}
+
+// ---------- modal ----------
+const modal = $("#modal");
+function abrirModal(html) { $("#modal-corpo").innerHTML = html; modal.showModal(); modal.querySelector("input, select, textarea")?.focus(); }
+function fecharModal() { modal.close(); }
+modal.addEventListener("click", (e) => { if (e.target.closest("[data-fechar]") || e.target === modal) fecharModal(); });
+
+// Atualiza o painel a cada 5 minutos mesmo sem eventos em tempo real
+setInterval(() => { if (papel && viewAtual === "painel") renderPainel(); }, 300000);
+
+iniciar();
+
+</script>
+</body>
+</html>
